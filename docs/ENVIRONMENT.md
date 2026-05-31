@@ -17,6 +17,8 @@ Copy `.env.example` to `.env.local` and fill the values for your deployment.
 - `GOOGLE_CLIENT_SECRET`
 - `EMAIL_SERVER`
 - `EMAIL_FROM`
+- `EMAIL_HTTP_ENDPOINT`: HTTPS endpoint that accepts `{ to, from, subject, text, html }` for magic-link delivery.
+- `EMAIL_HTTP_TOKEN`: optional bearer token sent to `EMAIL_HTTP_ENDPOINT`.
 
 Any provider without complete settings is skipped at runtime.
 
@@ -30,4 +32,3 @@ Any provider without complete settings is skipped at runtime.
 ## Local database
 
 The Docker Compose file requires a `POSTGRES_PASSWORD` shell variable or local `.env` entry. After the database is running, set `DATABASE_URL` to the matching local connection URL in `.env.local`.
-

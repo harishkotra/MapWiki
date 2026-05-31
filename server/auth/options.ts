@@ -1,9 +1,9 @@
-import EmailProvider from "next-auth/providers/email";
 import GitHubProvider from "next-auth/providers/github";
 import GoogleProvider from "next-auth/providers/google";
 import type { NextAuthOptions } from "next-auth";
 import PostgresAdapter from "@auth/pg-adapter";
 import { getPool, hasDatabaseUrl } from "@/server/db/client";
+import { MapWikiEmailProvider } from "./email-provider";
 
 const providers: NextAuthOptions["providers"] = [];
 
@@ -27,7 +27,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
 
 if (process.env.EMAIL_SERVER && process.env.EMAIL_FROM) {
   providers.push(
-    EmailProvider({
+    MapWikiEmailProvider({
       server: process.env.EMAIL_SERVER,
       from: process.env.EMAIL_FROM
     })
