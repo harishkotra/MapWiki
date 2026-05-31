@@ -320,7 +320,7 @@ export function MapExplorer({
   return (
     <section className={cn("relative grid min-h-[620px] overflow-hidden rounded-none bg-muted", minimal ? "min-h-[520px]" : "lg:grid-cols-[320px_1fr]", className)}>
       {!minimal && (
-        <div className="z-10 hidden min-h-0 p-3 lg:block">
+        <div className="z-10 min-h-0 p-3">
           <LayerControlPanel datasets={datasets.data ?? []} />
         </div>
       )}
