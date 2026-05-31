@@ -10,6 +10,7 @@ The production path uses PostgreSQL/Neon tables:
 
 - `abuse_rate_limit_counters`: fixed-window counters keyed by anonymized client fingerprint and policy.
 - `abuse_rate_limit_penalties`: escalating temporary blocks after repeated limit violations.
+- `abuse_ip_bans`: source-IP bans keyed by salted IP hash. Suspicious submissions and serious rate-limit violations land here.
 - `abuse_events`: audit trail for blocked requests and spam rejections.
 
 When `DATABASE_URL` is not configured, the limiter falls back to an in-process counter for local previews only.
@@ -26,6 +27,7 @@ Default policies:
 - Revision restore: `8/hour`
 
 Rejected requests return HTTP `429` with `Retry-After` and standard `RateLimit-*` headers.
+Active IP bans return HTTP `403` with `Retry-After`.
 
 ## Spam Checks
 
@@ -39,7 +41,7 @@ Rejected requests return HTTP `429` with `Retry-After` and standard `RateLimit-*
 - Repeated low-variety text
 - Duplicate submissions from the same anonymized client inside a short window
 
-Warnings and rejections are written to `abuse_events` without storing raw IP addresses.
+Warnings and rejections are written to `abuse_events` without storing raw IP addresses. Spam warnings ban the IP hash for 1 hour. Spam rejections ban the IP hash for 24 hours, or 7 days for high-confidence spam.
 
 ## Open Contribution Identity
 

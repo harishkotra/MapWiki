@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ensureAbuseSchema, getClientIdentity, recordAbuseEvent, type ClientIdentity } from "@/lib/abuse";
+import { banClientIp, ensureAbuseSchema, getActiveIpBan, getClientIdentity, recordAbuseEvent, type ClientIdentity } from "@/lib/abuse";
 import { getPool, hasDatabaseUrl } from "@/server/db/client";
 
 type FallbackBucket = {
@@ -25,6 +25,8 @@ export type RateLimitResult = {
   remaining: number;
   resetAt: number;
   retryAfter: number;
+  blocked?: boolean;
+  reason?: string;
 };
 
 const fallbackBuckets = new Map<string, FallbackBucket>();
@@ -164,12 +166,21 @@ async function databaseRateLimit(identity: ClientIdentity, rule: RateLimitRule):
     [identity.key, rule.id, penaltyMs, maxPenaltyMs]
   );
   const blockedUntil = blocked.rows[0]?.blocked_until.getTime() ?? resetAt;
+  const retryAfter = Math.max(1, Math.ceil((blockedUntil - now) / 1000));
+  const reason = `Exceeded ${rule.limit} requests per ${Math.round(rule.windowMs / 1000)} seconds.`;
   await recordAbuseEvent(identity, {
     action: rule.id,
     kind: "rate_limit",
     score: 100,
-    reasons: [`Exceeded ${rule.limit} requests per ${Math.round(rule.windowMs / 1000)} seconds.`],
-    metadata: { limit: rule.limit, count, retryAfter: Math.max(1, Math.ceil((blockedUntil - now) / 1000)) }
+    reasons: [reason],
+    metadata: { limit: rule.limit, count, retryAfter }
+  });
+  await banClientIp(identity, {
+    action: rule.id,
+    reason,
+    durationMs: Math.max(rule.penaltyMs ?? rule.windowMs, 60 * 60_000),
+    score: 100,
+    metadata: { limit: rule.limit, count, retryAfter }
   });
 
   return {
@@ -179,12 +190,35 @@ async function databaseRateLimit(identity: ClientIdentity, rule: RateLimitRule):
     limit: rule.limit,
     remaining: 0,
     resetAt: blockedUntil,
-    retryAfter: Math.max(1, Math.ceil((blockedUntil - now) / 1000))
+    retryAfter
   };
 }
 
 export async function checkRateLimits(request: Request, rules: RateLimitRule | RateLimitRule[]): Promise<RateLimitResult> {
   const identity = getClientIdentity(request);
+  const activeBan = await getActiveIpBan(identity);
+  if (activeBan) {
+    const now = Date.now();
+    await recordAbuseEvent(identity, {
+      action: activeBan.action,
+      kind: "ip_ban_hit",
+      score: activeBan.score,
+      reasons: [activeBan.reason],
+      metadata: { bannedUntil: new Date(activeBan.bannedUntil).toISOString() }
+    });
+    return {
+      ok: false,
+      identity,
+      policy: "ip:ban",
+      limit: 0,
+      remaining: 0,
+      resetAt: activeBan.bannedUntil,
+      retryAfter: Math.max(1, Math.ceil((activeBan.bannedUntil - now) / 1000)),
+      blocked: true,
+      reason: activeBan.reason
+    };
+  }
+
   const policies = Array.isArray(rules) ? rules : [rules];
   let latestOk: RateLimitResult | null = null;
 
@@ -218,10 +252,10 @@ export function rateLimitHeaders(result: RateLimitResult) {
 export function rateLimitExceeded(result: RateLimitResult) {
   return NextResponse.json(
     {
-      error: "Too many requests. Please wait before trying again.",
+      error: result.blocked ? "Access blocked due to suspicious activity." : "Too many requests. Please wait before trying again.",
       retryAfter: result.retryAfter
     },
-    { status: 429, headers: rateLimitHeaders(result) }
+    { status: result.blocked ? 403 : 429, headers: rateLimitHeaders(result) }
   );
 }
 

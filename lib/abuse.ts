@@ -91,6 +91,19 @@ export async function ensureAbuseSchema() {
             created_at timestamptz NOT NULL DEFAULT now()
           );
 
+          CREATE TABLE IF NOT EXISTS abuse_ip_bans (
+            ip_hash text PRIMARY KEY,
+            client_key text,
+            banned_until timestamptz NOT NULL,
+            reason text NOT NULL,
+            action text NOT NULL,
+            score integer NOT NULL DEFAULT 0,
+            hit_count integer NOT NULL DEFAULT 1,
+            metadata jsonb NOT NULL DEFAULT '{}',
+            created_at timestamptz NOT NULL DEFAULT now(),
+            updated_at timestamptz NOT NULL DEFAULT now()
+          );
+
           INSERT INTO users (id, name, email, image, bio, role)
           VALUES (
             '00000000-0000-4000-8000-000000000004',
@@ -107,11 +120,86 @@ export async function ensureAbuseSchema() {
           CREATE INDEX IF NOT EXISTS abuse_submission_last_seen_idx ON abuse_submission_fingerprints (last_seen);
           CREATE INDEX IF NOT EXISTS abuse_events_client_created_idx ON abuse_events (client_key, created_at DESC);
           CREATE INDEX IF NOT EXISTS abuse_events_action_created_idx ON abuse_events (action, created_at DESC);
+          CREATE INDEX IF NOT EXISTS abuse_ip_bans_active_idx ON abuse_ip_bans (banned_until);
         `
       )
       .then(() => undefined);
   }
   await ensureSchemaPromise;
+}
+
+export async function getActiveIpBan(identity: ClientIdentity) {
+  if (!hasDatabaseUrl()) return null;
+  await ensureAbuseSchema();
+  const result = await getPool().query<{
+    banned_until: Date;
+    reason: string;
+    action: string;
+    score: number;
+  }>(
+    `
+      SELECT banned_until, reason, action, score
+      FROM abuse_ip_bans
+      WHERE ip_hash = $1 AND banned_until > now()
+      LIMIT 1
+    `,
+    [identity.ipHash]
+  );
+  if (!result.rowCount) return null;
+  return {
+    bannedUntil: result.rows[0].banned_until.getTime(),
+    reason: result.rows[0].reason,
+    action: result.rows[0].action,
+    score: Number(result.rows[0].score ?? 0)
+  };
+}
+
+export async function banClientIp(
+  identity: ClientIdentity,
+  ban: { action: string; reason: string; durationMs: number; score?: number; metadata?: Record<string, unknown> }
+) {
+  if (!hasDatabaseUrl()) return;
+  await ensureAbuseSchema();
+  await getPool().query(
+    `
+      INSERT INTO abuse_ip_bans (ip_hash, client_key, banned_until, reason, action, score, metadata)
+      VALUES ($1, $2, now() + ($3::double precision * interval '1 millisecond'), $4, $5, $6, $7)
+      ON CONFLICT (ip_hash)
+      DO UPDATE SET
+        client_key = EXCLUDED.client_key,
+        banned_until = GREATEST(abuse_ip_bans.banned_until, EXCLUDED.banned_until),
+        reason = EXCLUDED.reason,
+        action = EXCLUDED.action,
+        score = GREATEST(abuse_ip_bans.score, EXCLUDED.score),
+        hit_count = abuse_ip_bans.hit_count + 1,
+        metadata = abuse_ip_bans.metadata || EXCLUDED.metadata,
+        updated_at = now()
+    `,
+    [
+      identity.ipHash,
+      identity.key,
+      ban.durationMs,
+      ban.reason,
+      ban.action,
+      ban.score ?? 0,
+      {
+        userAgentHash: identity.userAgentHash,
+        route: identity.route,
+        method: identity.method,
+        ...(ban.metadata ?? {})
+      }
+    ]
+  );
+  await recordAbuseEvent(identity, {
+    action: ban.action,
+    kind: "ip_ban",
+    score: ban.score ?? 0,
+    reasons: [ban.reason],
+    metadata: {
+      durationMs: ban.durationMs,
+      ...(ban.metadata ?? {})
+    }
+  });
 }
 
 export async function recordAbuseEvent(

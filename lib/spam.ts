@@ -1,4 +1,4 @@
-import { contentFingerprint, getClientIdentity, recordAbuseEvent, recordSubmissionFingerprint } from "@/lib/abuse";
+import { banClientIp, contentFingerprint, getClientIdentity, recordAbuseEvent, recordSubmissionFingerprint } from "@/lib/abuse";
 
 type SpamField = {
   name: string;
@@ -145,6 +145,20 @@ export async function checkSpam(request: Request, options: SpamCheckOptions): Pr
       score,
       reasons,
       metadata: { urlCount: totalUrlCount }
+    });
+  }
+  if (!ok || score >= 30) {
+    const reason = reasons[0] ?? "Suspicious submission pattern.";
+    await banClientIp(identity, {
+      action: options.action,
+      reason,
+      durationMs: ok ? 60 * 60_000 : score >= 125 ? 7 * 24 * 60 * 60_000 : 24 * 60 * 60_000,
+      score,
+      metadata: {
+        reasons,
+        urlCount: totalUrlCount,
+        outcome: ok ? "warning" : "rejected"
+      }
     });
   }
 
