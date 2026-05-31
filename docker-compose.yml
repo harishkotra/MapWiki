@@ -1,0 +1,19 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: mapwiki
+      POSTGRES_USER: ${POSTGRES_USER:-mapwiki}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your shell or .env file}
+    ports:
+      - "5432:5432"
+    volumes:
+      - mapwiki-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mapwiki -d mapwiki"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  mapwiki-postgres:
