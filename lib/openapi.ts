@@ -3,7 +3,8 @@ export const openApiDocument = {
   info: {
     title: "MapWiki API",
     version: "0.1.0",
-    description: "REST API for collaborative geographic datasets, map objects, revisions, comments, imports, exports, and search."
+    description:
+      "REST API for collaborative geographic datasets, map objects, revisions, comments, imports, exports, and search. Public write endpoints are open but protected with anonymized client rate limits and spam checks."
   },
   servers: [{ url: "/api" }],
   paths: {
@@ -20,8 +21,11 @@ export const openApiDocument = {
       },
       post: {
         summary: "Create a dataset",
-        security: [{ session: [] }],
-        responses: { "201": { description: "Created dataset" }, "401": { description: "Authentication required" } }
+        responses: {
+          "201": { description: "Created dataset" },
+          "422": { description: "Validation or spam rejection" },
+          "429": { description: "Rate limit exceeded" }
+        }
       }
     },
     "/locations": {
@@ -36,8 +40,11 @@ export const openApiDocument = {
       },
       post: {
         summary: "Create a map object",
-        security: [{ session: [] }],
-        responses: { "201": { description: "Created location" } }
+        responses: {
+          "201": { description: "Created location" },
+          "422": { description: "Validation or spam rejection" },
+          "429": { description: "Rate limit exceeded" }
+        }
       }
     },
     "/search": {
@@ -71,16 +78,23 @@ export const openApiDocument = {
       },
       post: {
         summary: "Create a comment",
-        security: [{ session: [] }],
-        responses: { "201": { description: "Created comment" } }
+        responses: {
+          "201": { description: "Created comment" },
+          "422": { description: "Validation or spam rejection" },
+          "429": { description: "Rate limit exceeded" }
+        }
       }
     },
     "/imports": {
       post: {
         summary: "Validate and preview CSV, TSV, GeoJSON, KML, or GPX imports",
-        security: [{ session: [] }],
         requestBody: { content: { "multipart/form-data": { schema: { type: "object", properties: { file: { type: "string", format: "binary" } } } } } },
-        responses: { "200": { description: "Import summary" } }
+        responses: {
+          "200": { description: "Import summary" },
+          "413": { description: "File too large" },
+          "422": { description: "Validation or spam rejection" },
+          "429": { description: "Rate limit exceeded" }
+        }
       }
     },
     "/exports": {
@@ -100,4 +114,3 @@ export const openApiDocument = {
     }
   }
 };
-

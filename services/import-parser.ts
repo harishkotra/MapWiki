@@ -3,6 +3,13 @@ import { XMLParser } from "fast-xml-parser";
 import type { Feature, Geometry, ImportPreviewRow, ImportSummary } from "@/types/domain";
 
 const xmlParser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "" });
+const maxImportRows = 50_000;
+
+function assertRowBudget(count: number) {
+  if (count > maxImportRows) {
+    throw new Error(`Import preview is limited to ${maxImportRows.toLocaleString()} records.`);
+  }
+}
 
 function extensionFor(fileName: string): ImportSummary["fileType"] {
   const ext = fileName.toLowerCase().split(".").pop();
@@ -20,6 +27,7 @@ function asNumber(value: unknown) {
 }
 
 function tabularPreview(text: string, fileName: string, delimiter: "," | "\t"): ImportSummary {
+  assertRowBudget(text.split(/\r\n|\r|\n/).length);
   const records = parse(text, {
     columns: true,
     skip_empty_lines: true,
@@ -28,6 +36,7 @@ function tabularPreview(text: string, fileName: string, delimiter: "," | "\t"): 
     relax_column_count: true,
     trim: true
   }) as Array<Record<string, string>>;
+  assertRowBudget(records.length);
 
   const preview: ImportPreviewRow[] = records.slice(0, 100).map((record, index) => {
     const latitude = asNumber(record.latitude ?? record.lat ?? record.Latitude ?? record.LAT);
@@ -70,6 +79,7 @@ function tabularPreview(text: string, fileName: string, delimiter: "," | "\t"): 
 function geoJsonPreview(text: string, fileName: string): ImportSummary {
   const parsed = JSON.parse(text) as { type: string; features?: Feature[] };
   const features = parsed.type === "FeatureCollection" && Array.isArray(parsed.features) ? parsed.features : [];
+  assertRowBudget(features.length);
   const preview = features.slice(0, 100).map<ImportPreviewRow>((feature, index) => ({
     rowNumber: index + 1,
     title: String(feature.properties.name ?? feature.properties.title ?? `Feature ${index + 1}`),
@@ -95,9 +105,11 @@ function normalizeArray<T>(value: T | T[] | undefined): T[] {
 }
 
 function kmlPreview(text: string, fileName: string): ImportSummary {
+  if (/<!DOCTYPE|<!ENTITY/i.test(text)) throw new Error("XML entities and doctypes are not accepted.");
   const parsed = xmlParser.parse(text);
   const document = parsed.kml?.Document ?? parsed.kml?.Folder ?? parsed.kml;
   const placemarks = normalizeArray(document?.Placemark);
+  assertRowBudget(placemarks.length);
   const preview = placemarks.slice(0, 100).map<ImportPreviewRow>((placemark: Record<string, any>, index) => {
     const coordText = placemark.Point?.coordinates as string | undefined;
     const coords = coordText?.trim().split(",").map(Number);
@@ -126,8 +138,10 @@ function kmlPreview(text: string, fileName: string): ImportSummary {
 }
 
 function gpxPreview(text: string, fileName: string): ImportSummary {
+  if (/<!DOCTYPE|<!ENTITY/i.test(text)) throw new Error("XML entities and doctypes are not accepted.");
   const parsed = xmlParser.parse(text);
   const waypoints = normalizeArray(parsed.gpx?.wpt);
+  assertRowBudget(waypoints.length);
   const preview = waypoints.slice(0, 100).map<ImportPreviewRow>((point: Record<string, any>, index) => {
     const longitude = asNumber(point.lon);
     const latitude = asNumber(point.lat);
@@ -163,4 +177,3 @@ export function parseImportFile(text: string, fileName: string): ImportSummary {
   if (type === "gpx") return gpxPreview(text, fileName);
   return tabularPreview(text, fileName, ",");
 }
-

@@ -67,6 +67,6 @@ npm run test:e2e
 - [Database](docs/DATABASE.md)
 - [API](docs/API.md)
 - [Design System](docs/DESIGN_SYSTEM.md)
+- [Abuse Controls](docs/ABUSE_CONTROLS.md)
 - [Environment](docs/ENVIRONMENT.md)
 - [Contributing](CONTRIBUTING.md)
-
