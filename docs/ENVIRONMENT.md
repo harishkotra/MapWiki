@@ -1,6 +1,6 @@
 # Environment Variables
 
-Copy `.env.example` to `.env.local` and fill the values for your deployment.
+Create a local environment file and fill the values for your deployment. Do not commit local environment files or production secrets.
 
 ## Required for production
 

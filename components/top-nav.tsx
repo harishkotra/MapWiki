@@ -30,7 +30,7 @@ export function TopNav() {
             </Link>
           </Button>
           <Button asChild variant="outline" size="sm" className="hidden sm:inline-flex">
-            <Link href="https://github.com/" target="_blank">
+            <Link href="https://github.com/harishkotra/MapWiki" target="_blank" rel="noreferrer">
               <Github className="h-4 w-4" />
               Source
             </Link>
@@ -49,4 +49,3 @@ export function TopNav() {
     </header>
   );
 }
-
