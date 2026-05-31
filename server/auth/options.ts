@@ -2,7 +2,7 @@ import EmailProvider from "next-auth/providers/email";
 import GitHubProvider from "next-auth/providers/github";
 import GoogleProvider from "next-auth/providers/google";
 import type { NextAuthOptions } from "next-auth";
-import { PostgresAdapter } from "@next-auth/pg-adapter";
+import PostgresAdapter from "@auth/pg-adapter";
 import { getPool, hasDatabaseUrl } from "@/server/db/client";
 
 const providers: NextAuthOptions["providers"] = [];
@@ -62,4 +62,3 @@ export const authOptions: NextAuthOptions = {
     }
   }
 };
-

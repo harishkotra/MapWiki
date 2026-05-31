@@ -11,11 +11,12 @@ import { formatCompactNumber } from "@/lib/utils";
 import { getDatasetBySlug, getLocationsForDataset, listComments, listRevisions } from "@/server/db/repositories";
 
 type PageProps = {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 };
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const dataset = await getDatasetBySlug(params.slug);
+  const { slug } = await params;
+  const dataset = await getDatasetBySlug(slug);
   if (!dataset) return { title: "Dataset not found" };
   return {
     title: dataset.name,
@@ -29,7 +30,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export default async function DatasetPage({ params }: PageProps) {
-  const dataset = await getDatasetBySlug(params.slug);
+  const { slug } = await params;
+  const dataset = await getDatasetBySlug(slug);
   if (!dataset) notFound();
 
   const [locations, revisions, comments] = await Promise.all([
@@ -174,4 +176,3 @@ export default async function DatasetPage({ params }: PageProps) {
     </div>
   );
 }
-

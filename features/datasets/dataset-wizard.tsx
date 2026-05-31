@@ -46,7 +46,11 @@ export function DatasetWizard() {
   function publish() {
     startTransition(async () => {
       const result = await createDatasetAction(payload);
-      setMessage(result.ok ? `Created ${result.data.name} as a draft.` : result.error);
+      if (result.ok && result.data) {
+        setMessage(`Created ${result.data.name} as a draft.`);
+      } else {
+        setMessage(result.error ?? "Could not publish dataset.");
+      }
     });
   }
 
@@ -168,4 +172,3 @@ export function DatasetWizard() {
     </div>
   );
 }
-

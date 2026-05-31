@@ -15,13 +15,6 @@ const nextConfig = {
         hostname: "avatars.githubusercontent.com"
       }
     ]
-  },
-  webpack(config) {
-    config.resolve.fallback = {
-      ...config.resolve.fallback,
-      fs: false
-    };
-    return config;
   }
 };
 

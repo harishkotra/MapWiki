@@ -5,16 +5,18 @@ import { DatasetCard } from "@/components/dataset-card";
 import { getUserById, listDatasets, listRevisions } from "@/server/db/repositories";
 
 type PageProps = {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 };
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const user = await getUserById(params.id);
+  const { id } = await params;
+  const user = await getUserById(id);
   return { title: user ? user.name : "Profile not found" };
 }
 
 export default async function ProfilePage({ params }: PageProps) {
-  const user = await getUserById(params.id);
+  const { id } = await params;
+  const user = await getUserById(id);
   if (!user) notFound();
 
   const [datasets, revisions] = await Promise.all([listDatasets({ limit: 100 }), listRevisions()]);
@@ -71,4 +73,3 @@ export default async function ProfilePage({ params }: PageProps) {
     </div>
   );
 }
-
