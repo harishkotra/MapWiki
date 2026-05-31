@@ -1,0 +1,70 @@
+@import "maplibre-gl/dist/maplibre-gl.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 0 0% 99%;
+  --foreground: 220 16% 12%;
+  --card: 0 0% 100%;
+  --card-foreground: 220 16% 12%;
+  --primary: 173 80% 27%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 45 42% 94%;
+  --secondary-foreground: 220 16% 12%;
+  --muted: 210 16% 94%;
+  --muted-foreground: 218 11% 38%;
+  --accent: 191 75% 90%;
+  --accent-foreground: 190 80% 19%;
+  --destructive: 0 72% 45%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 216 16% 85%;
+  --input: 216 16% 88%;
+  --ring: 173 80% 27%;
+  --radius: 8px;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  min-height: 100vh;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.maplibregl-popup-content {
+  border-radius: 8px;
+  border: 1px solid hsl(var(--border));
+  box-shadow: 0 10px 35px rgba(20, 20, 20, 0.18);
+  padding: 0;
+}
+
+.maplibregl-popup-close-button {
+  color: hsl(var(--foreground));
+  font-size: 18px;
+  padding: 6px 8px;
+}
+
+.focus-ring {
+  @apply outline-none ring-offset-2 ring-offset-background focus-visible:ring-2 focus-visible:ring-ring;
+}
+
