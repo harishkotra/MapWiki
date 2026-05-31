@@ -56,7 +56,7 @@ const config: Config = {
         sm: "calc(var(--radius) - 4px)"
       },
       fontFamily: {
-        sans: ["var(--font-inter)", "Inter", "ui-sans-serif", "system-ui", "sans-serif"]
+        sans: ["var(--font-inter, Inter)", "ui-sans-serif", "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"]
       },
       boxShadow: {
         panel: "0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 28px rgba(15, 23, 42, 0.08)"
@@ -67,4 +67,3 @@ const config: Config = {
 };
 
 export default config;
-
