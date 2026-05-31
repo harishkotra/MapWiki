@@ -7,6 +7,8 @@ export const metadata: Metadata = {
   title: "Admin"
 };
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminPage() {
   const [datasets, locations, users] = await Promise.all([listDatasets({ limit: 100 }), listLocations({ limit: 5000 }), listUsers()]);
   const cards = [
@@ -46,4 +48,3 @@ export default async function AdminPage() {
     </div>
   );
 }
-

@@ -13,3 +13,4 @@ test-results
 dist
 tmp
 .vercel
+.env*

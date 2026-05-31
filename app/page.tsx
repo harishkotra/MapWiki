@@ -8,6 +8,8 @@ import { StatsStrip } from "@/components/stats-strip";
 import { Badge } from "@/components/ui/badge";
 import { listDatasets, listLocations, listRevisions, listUsers } from "@/server/db/repositories";
 
+export const dynamic = "force-dynamic";
+
 export default async function HomePage() {
   const [datasets, locations, users, revisions] = await Promise.all([
     listDatasets({ featured: true, limit: 6 }),
@@ -120,4 +122,3 @@ export default async function HomePage() {
     </>
   );
 }
-

@@ -8,6 +8,8 @@ export const metadata: Metadata = {
   title: "Moderation"
 };
 
+export const dynamic = "force-dynamic";
+
 export default async function ModerationPage() {
   const datasets = await listDatasets({ featured: true, limit: 4 });
   const queue = datasets.map((dataset, index) => ({
@@ -68,4 +70,3 @@ export default async function ModerationPage() {
     </div>
   );
 }
-
