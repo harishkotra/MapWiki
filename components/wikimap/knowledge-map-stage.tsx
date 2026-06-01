@@ -5,6 +5,9 @@ import Link from "next/link";
 import { ChevronDown, Crosshair, Globe2, Home, Map as MapIcon, Minus, Plus, Search, SlidersHorizontal, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import * as THREE from "three";
+import { feature as topoJsonFeature } from "topojson-client";
+import type { GeometryCollection, Topology } from "topojson-specification";
+import countries110m from "world-atlas/countries-110m.json";
 
 type ViewMode = "globe" | "projection";
 
@@ -22,6 +25,11 @@ type KnowledgeNode = {
 };
 
 type MapSignal = Pick<KnowledgeNode, "lat" | "lon" | "intensity">;
+type LatLon = [number, number];
+type LonLat = [number, number];
+type GeoJsonGeometry = { type: "Polygon"; coordinates: LonLat[][] } | { type: "MultiPolygon"; coordinates: LonLat[][][] };
+type GeoJsonFeatureCollection = { features: Array<{ geometry: GeoJsonGeometry | null }> };
+type WorldTopology = Topology<{ countries: GeometryCollection }>;
 
 const nodes: KnowledgeNode[] = [
   {
@@ -241,84 +249,38 @@ const zones: Array<{ name: string; coordinates: Array<[number, number]> }> = [
   }
 ];
 
-const landOutlines: Array<Array<[number, number]>> = [
-  [
-    [59, -10],
-    [52, 5],
-    [45, 13],
-    [41, 28],
-    [35, 38],
-    [30, 33],
-    [22, 35],
-    [14, 30],
-    [6, 19],
-    [-4, 12],
-    [-18, 16],
-    [-34, 20],
-    [-34, 29],
-    [-21, 35],
-    [-5, 39],
-    [12, 44],
-    [28, 47],
-    [42, 44],
-    [52, 30],
-    [60, 18],
-    [59, -10]
-  ],
-  [
-    [71, -168],
-    [62, -141],
-    [49, -123],
-    [35, -118],
-    [23, -106],
-    [19, -90],
-    [27, -81],
-    [41, -73],
-    [49, -62],
-    [58, -82],
-    [69, -101],
-    [72, -138],
-    [71, -168]
-  ],
-  [
-    [12, -82],
-    [3, -78],
-    [-8, -76],
-    [-18, -70],
-    [-34, -71],
-    [-54, -67],
-    [-43, -58],
-    [-22, -45],
-    [-6, -35],
-    [7, -50],
-    [12, -65],
-    [12, -82]
-  ],
-  [
-    [72, 35],
-    [62, 55],
-    [55, 85],
-    [45, 102],
-    [35, 122],
-    [20, 110],
-    [9, 103],
-    [21, 77],
-    [30, 63],
-    [39, 51],
-    [49, 44],
-    [62, 42],
-    [72, 35]
-  ],
-  [
-    [-11, 113],
-    [-23, 114],
-    [-38, 145],
-    [-28, 154],
-    [-15, 145],
-    [-11, 131],
-    [-11, 113]
-  ]
-];
+function splitAntimeridianRing(ring: LonLat[]) {
+  const segments: LatLon[][] = [];
+  let current: LatLon[] = [];
+  let previousLon: number | null = null;
+
+  ring.forEach(([lon, lat]) => {
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+    if (previousLon !== null && Math.abs(lon - previousLon) > 180) {
+      if (current.length > 1) segments.push(current);
+      current = [];
+    }
+    current.push([lat, lon]);
+    previousLon = lon;
+  });
+
+  if (current.length > 1) segments.push(current);
+  return segments;
+}
+
+function buildLandOutlines() {
+  const topology = countries110m as unknown as WorldTopology;
+  const collection = topoJsonFeature(topology, topology.objects.countries) as unknown as GeoJsonFeatureCollection;
+
+  return collection.features.flatMap((countryFeature) => {
+    const geometry = countryFeature.geometry;
+    if (!geometry) return [];
+    if (geometry.type === "Polygon") return geometry.coordinates.flatMap(splitAntimeridianRing);
+    return geometry.coordinates.flatMap((polygon) => polygon.flatMap(splitAntimeridianRing));
+  });
+}
+
+const landOutlines = buildLandOutlines();
 
 function project(lat: number, lon: number) {
   return {
