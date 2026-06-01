@@ -33,8 +33,14 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`}>
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{var t=localStorage.getItem('mapwiki-theme')||'v2';document.documentElement.dataset.mapwikiTheme=t}catch(e){document.documentElement.dataset.mapwikiTheme='v2'}"
+          }}
+        />
         <Providers>
           <NavigationFrame />
           <main>{children}</main>

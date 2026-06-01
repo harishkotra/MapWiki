@@ -5,10 +5,10 @@ import { GlobalSearch } from "@/features/search/global-search";
 
 export function TopNav() {
   return (
-    <header className="sticky top-0 z-40 border-b bg-background/92 backdrop-blur">
+    <header className="mapwiki-top-nav sticky top-0 z-40 border-b bg-background/92 backdrop-blur">
       <div className="container flex h-14 items-center gap-3">
-        <Link href="/" className="flex shrink-0 items-center gap-2 font-semibold" aria-label="MapWiki home">
-          <span className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
+        <Link href="/" className="mapwiki-top-nav-brand flex shrink-0 items-center gap-2 font-semibold" aria-label="MapWiki home">
+          <span className="mapwiki-top-nav-mark flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
             <Map className="h-4 w-4" />
           </span>
           <span>MapWiki</span>

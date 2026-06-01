@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export function SiteFooter() {
   return (
-    <footer className="border-t bg-background">
+    <footer className="mapwiki-footer border-t bg-background">
       <div className="container grid gap-6 py-8 text-sm text-muted-foreground md:grid-cols-[1.4fr_1fr_1fr]">
         <div className="max-w-md">
           <div className="font-semibold text-foreground">MapWiki</div>

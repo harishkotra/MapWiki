@@ -25,6 +25,27 @@
   --radius: 8px;
 }
 
+:root[data-mapwiki-theme="v2"] {
+  --background: 60 18% 96%;
+  --foreground: 0 0% 8%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 8%;
+  --primary: 256 66% 45%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 60 10% 92%;
+  --secondary-foreground: 0 0% 10%;
+  --muted: 60 9% 91%;
+  --muted-foreground: 0 0% 37%;
+  --accent: 190 80% 89%;
+  --accent-foreground: 196 78% 20%;
+  --destructive: 0 72% 45%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 48 9% 84%;
+  --input: 48 9% 84%;
+  --ring: 256 66% 45%;
+  --radius: 8px;
+}
+
 * {
   border-color: hsl(var(--border));
 }
@@ -38,6 +59,76 @@ body {
   color: hsl(var(--foreground));
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   min-height: 100vh;
+}
+
+:root[data-mapwiki-theme="v2"] body {
+  background: #f7f7f4;
+}
+
+:root[data-mapwiki-theme="v2"] main {
+  background: #f7f7f4;
+}
+
+:root[data-mapwiki-theme="v2"] .mapwiki-top-nav {
+  background: rgba(251, 251, 248, 0.92);
+  border-color: #deded9;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+:root[data-mapwiki-theme="v2"] .mapwiki-top-nav-brand {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.05rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+:root[data-mapwiki-theme="v2"] .mapwiki-top-nav-mark {
+  border: 1px solid #d7d7d2;
+  background: radial-gradient(circle at 35% 28%, #ffffff, #d8d8d4 48%, #a8a8a2 100%);
+  color: #111;
+  border-radius: 999px;
+}
+
+:root[data-mapwiki-theme="v2"] .mapwiki-card,
+:root[data-mapwiki-theme="v2"] .mapwiki-layer-panel,
+:root[data-mapwiki-theme="v2"] .rounded-lg.border.bg-card,
+:root[data-mapwiki-theme="v2"] .rounded-md.border.bg-background,
+:root[data-mapwiki-theme="v2"] .rounded-lg.border.bg-background {
+  border-color: #deded9;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(14px);
+}
+
+:root[data-mapwiki-theme="v2"] .mapwiki-button {
+  border-radius: 999px;
+}
+
+:root[data-mapwiki-theme="v2"] .mapwiki-input {
+  border-color: #deded9;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: none;
+}
+
+:root[data-mapwiki-theme="v2"] .mapwiki-map-explorer {
+  background: #f7f7f4;
+}
+
+:root[data-mapwiki-theme="v2"] .mapwiki-footer {
+  border-color: #deded9;
+  background: #fbfbf8;
+}
+
+:root[data-mapwiki-theme="v2"] .maplibregl-canvas {
+  filter: saturate(0.7) contrast(0.92) brightness(1.08);
+}
+
+:root[data-mapwiki-theme="v2"] .maplibregl-ctrl-group {
+  overflow: hidden;
+  border: 1px solid #deded9;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -67,4 +158,3 @@ body {
 .focus-ring {
   @apply outline-none ring-offset-2 ring-offset-background focus-visible:ring-2 focus-visible:ring-ring;
 }
-

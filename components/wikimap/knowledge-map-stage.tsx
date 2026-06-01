@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ChevronDown, Crosshair, Globe2, Home, Map as MapIcon, Minus, Plus, Search, SlidersHorizontal, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import * as THREE from "three";
 import { feature as topoJsonFeature } from "topojson-client";
 import type { GeometryCollection, Topology } from "topojson-specification";
@@ -350,14 +350,24 @@ function useReducedMotion() {
   return useSyncExternalStore(subscribeReducedMotion, getReducedMotionSnapshot, getReducedMotionServerSnapshot);
 }
 
+function zoomBoundsForMode(mode: ViewMode) {
+  return mode === "projection" ? { min: 0.8, max: 2.2, step: 0.2 } : { min: 0.85, max: 1.55, step: 0.14 };
+}
+
 function ThreeGlobe({
   showHeat,
   showNodes,
-  showBorders
+  showBorders,
+  selectedNodeTitle,
+  zoom,
+  onSelectNode
 }: {
   showHeat: boolean;
   showNodes: boolean;
   showBorders: boolean;
+  selectedNodeTitle: string | null;
+  zoom: number;
+  onSelectNode: (title: string) => void;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -374,7 +384,7 @@ function ThreeGlobe({
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
-    camera.position.set(0, 0, 3.55);
+    camera.position.set(0, 0, 3.55 / zoom);
 
     const globe = new THREE.Group();
     globe.rotation.x = -0.18;
@@ -449,6 +459,28 @@ function ThreeGlobe({
       });
     }
 
+    const clickableMarkers: THREE.Object3D[] = [];
+    const hitGeometry = new THREE.SphereGeometry(0.045, 12, 12);
+    nodes.forEach((node) => {
+      const isSelected = node.title === selectedNodeTitle;
+      const marker = new THREE.Mesh(
+        new THREE.SphereGeometry(isSelected ? 0.017 : 0.011, 16, 16),
+        new THREE.MeshBasicMaterial({ color: isSelected ? 0x171717 : 0x5b21b6, depthTest: false, depthWrite: false })
+      );
+      marker.renderOrder = 45;
+      marker.position.copy(latLonToVector3(node.lat, node.lon, radius + 0.065));
+      globe.add(marker);
+
+      const hitTarget = new THREE.Mesh(
+        hitGeometry,
+        new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0, depthTest: false, depthWrite: false })
+      );
+      hitTarget.position.copy(latLonToVector3(node.lat, node.lon, radius + 0.08));
+      hitTarget.userData.nodeTitle = node.title;
+      clickableMarkers.push(hitTarget);
+      globe.add(hitTarget);
+    });
+
     let width = 1;
     let height = 1;
     const resize = () => {
@@ -464,11 +496,13 @@ function ThreeGlobe({
     resize();
 
     let dragging = false;
+    let pointerMoved = false;
     let lastX = 0;
     let lastY = 0;
 
     const onPointerDown = (event: PointerEvent) => {
       dragging = true;
+      pointerMoved = false;
       lastX = event.clientX;
       lastY = event.clientY;
       canvas.setPointerCapture(event.pointerId);
@@ -477,6 +511,7 @@ function ThreeGlobe({
       if (!dragging) return;
       const dx = event.clientX - lastX;
       const dy = event.clientY - lastY;
+      if (Math.abs(dx) + Math.abs(dy) > 5) pointerMoved = true;
       globe.rotation.y += dx * 0.006;
       globe.rotation.x = THREE.MathUtils.clamp(globe.rotation.x + dy * 0.004, -0.8, 0.45);
       lastX = event.clientX;
@@ -485,6 +520,15 @@ function ThreeGlobe({
     const onPointerUp = (event: PointerEvent) => {
       dragging = false;
       if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+      if (pointerMoved || !clickableMarkers.length) return;
+
+      const bounds = canvas.getBoundingClientRect();
+      const pointer = new THREE.Vector2(((event.clientX - bounds.left) / bounds.width) * 2 - 1, -(((event.clientY - bounds.top) / bounds.height) * 2 - 1));
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(pointer, camera);
+      const hit = raycaster.intersectObjects(clickableMarkers, false)[0];
+      const title = hit?.object.userData.nodeTitle;
+      if (typeof title === "string") onSelectNode(title);
     };
     canvas.addEventListener("pointerdown", onPointerDown);
     canvas.addEventListener("pointermove", onPointerMove);
@@ -517,7 +561,7 @@ function ThreeGlobe({
       });
       renderer.dispose();
     };
-  }, [reducedMotion, showBorders, showHeat, showNodes]);
+  }, [onSelectNode, reducedMotion, selectedNodeTitle, showBorders, showHeat, showNodes, zoom]);
 
   return (
     <div className="absolute left-1/2 top-4 h-[780px] w-[780px] -translate-x-1/2 overflow-hidden rounded-full border border-neutral-300/80 bg-[#f0f0ec] shadow-[inset_28px_20px_70px_rgba(255,255,255,0.95),inset_-38px_-20px_90px_rgba(0,0,0,0.08)] md:h-[920px] md:w-[920px] xl:h-[1120px] xl:w-[1120px]">
@@ -533,77 +577,115 @@ function ProjectionMap({
   showHeat,
   showNodes,
   showBorders,
-  showLabels
+  showLabels,
+  selectedNodeTitle,
+  zoom,
+  onSelectNode
 }: {
   showHeat: boolean;
   showNodes: boolean;
   showBorders: boolean;
   showLabels: boolean;
+  selectedNodeTitle: string | null;
+  zoom: number;
+  onSelectNode: (title: string) => void;
 }) {
   const graticuleLat = [-60, -30, 0, 30, 60];
   const graticuleLon = [-150, -120, -90, -60, -30, 0, 30, 60, 90, 120, 150];
 
   return (
-    <svg className="absolute inset-0 h-full w-full" viewBox="0 0 1000 620" role="img" aria-label="2D world projection showing Wikimap knowledge nodes">
-      <defs>
-        <radialGradient id="projectionHeat" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="rgb(239 68 68)" stopOpacity="0.96" />
-          <stop offset="24%" stopColor="rgb(250 204 21)" stopOpacity="0.9" />
-          <stop offset="50%" stopColor="rgb(34 211 238)" stopOpacity="0.55" />
-          <stop offset="100%" stopColor="rgb(59 130 246)" stopOpacity="0" />
-        </radialGradient>
-      </defs>
-      <rect width="1000" height="620" fill="#f7f7f4" />
-      {showBorders &&
-        graticuleLat.map((lat) => {
-          const start = project(lat, -180);
-          const end = project(lat, 180);
-          return <line key={`lat-${lat}`} x1={start.x} y1={start.y} x2={end.x} y2={end.y} stroke="#d7d7d2" strokeWidth="1" />;
-        })}
-      {showBorders &&
-        graticuleLon.map((lon) => {
-          const start = project(80, lon);
-          const end = project(-80, lon);
-          return <line key={`lon-${lon}`} x1={start.x} y1={start.y} x2={end.x} y2={end.y} stroke="#d7d7d2" strokeWidth="1" />;
-        })}
-      {landOutlines.map((outline, index) => (
-        <polyline key={`land-${index}`} points={polylinePoints(outline).join(" ")} fill="none" stroke="#73736d" strokeWidth="1.7" strokeLinejoin="round" />
-      ))}
-      {routes.map((route) => (
-        <polyline key={route.name} points={polylinePoints(route.coordinates).join(" ")} fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.72" />
-      ))}
-      {zones.map((zone) => (
-        <polygon key={zone.name} points={polylinePoints(zone.coordinates).join(" ")} fill="rgba(180,83,9,0.12)" stroke="#b45309" strokeWidth="2" />
-      ))}
-      {showHeat &&
-        mapSignals.map((node, index) => {
-          const point = project(node.lat, node.lon);
-          return <circle key={`heat-${node.lat}-${node.lon}-${index}`} cx={point.x} cy={point.y} r={18 + node.intensity * 26} fill="url(#projectionHeat)" opacity="0.9" />;
-        })}
-      {showNodes &&
-        mapSignals.map((node, index) => {
-          const point = project(node.lat, node.lon);
-          return <circle key={`node-${node.lat}-${node.lon}-${index}`} cx={point.x} cy={point.y} r="4.5" fill="#5b21b6" stroke="#fff" strokeWidth="1.5" />;
-        })}
-      {showLabels &&
-        nodes.slice(0, 6).map((node) => {
-          const point = project(node.lat, node.lon);
-          return (
-            <text key={`label-${node.title}`} x={point.x + 8} y={point.y - 8} fill="#171717" fontSize="13" fontFamily="Inter, system-ui">
-              {node.title}
-            </text>
-          );
-        })}
-    </svg>
+    <div className="absolute inset-0 overflow-hidden bg-[#f7f7f4]">
+      <svg
+        className="absolute inset-0 h-full w-full transition-transform duration-300"
+        style={{ transform: `scale(${zoom})`, transformOrigin: "50% 48%" }}
+        viewBox="0 0 1000 620"
+        role="img"
+        aria-label="2D world projection showing Wikimap knowledge nodes"
+      >
+        <defs>
+          <radialGradient id="projectionHeat" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="rgb(239 68 68)" stopOpacity="0.96" />
+            <stop offset="24%" stopColor="rgb(250 204 21)" stopOpacity="0.9" />
+            <stop offset="50%" stopColor="rgb(34 211 238)" stopOpacity="0.55" />
+            <stop offset="100%" stopColor="rgb(59 130 246)" stopOpacity="0" />
+          </radialGradient>
+        </defs>
+        <rect width="1000" height="620" fill="#f7f7f4" />
+        {showBorders &&
+          graticuleLat.map((lat) => {
+            const start = project(lat, -180);
+            const end = project(lat, 180);
+            return <line key={`lat-${lat}`} x1={start.x} y1={start.y} x2={end.x} y2={end.y} stroke="#d7d7d2" strokeWidth="1" />;
+          })}
+        {showBorders &&
+          graticuleLon.map((lon) => {
+            const start = project(80, lon);
+            const end = project(-80, lon);
+            return <line key={`lon-${lon}`} x1={start.x} y1={start.y} x2={end.x} y2={end.y} stroke="#d7d7d2" strokeWidth="1" />;
+          })}
+        {landOutlines.map((outline, index) => (
+          <polyline key={`land-${index}`} points={polylinePoints(outline).join(" ")} fill="none" stroke="#73736d" strokeWidth="1.7" strokeLinejoin="round" />
+        ))}
+        {routes.map((route) => (
+          <polyline key={route.name} points={polylinePoints(route.coordinates).join(" ")} fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.72" />
+        ))}
+        {zones.map((zone) => (
+          <polygon key={zone.name} points={polylinePoints(zone.coordinates).join(" ")} fill="rgba(180,83,9,0.12)" stroke="#b45309" strokeWidth="2" />
+        ))}
+        {showHeat &&
+          mapSignals.map((node, index) => {
+            const point = project(node.lat, node.lon);
+            return <circle key={`heat-${node.lat}-${node.lon}-${index}`} cx={point.x} cy={point.y} r={18 + node.intensity * 26} fill="url(#projectionHeat)" opacity="0.9" />;
+          })}
+        {showNodes &&
+          ambientSignals.map((node, index) => {
+            const point = project(node.lat, node.lon);
+            return <circle key={`ambient-node-${node.lat}-${node.lon}-${index}`} cx={point.x} cy={point.y} r="4.5" fill="#5b21b6" stroke="#fff" strokeWidth="1.5" />;
+          })}
+        {showNodes &&
+          nodes.map((node) => {
+            const point = project(node.lat, node.lon);
+            const selected = node.title === selectedNodeTitle;
+            return (
+              <g
+                key={`node-${node.title}`}
+                className="cursor-pointer outline-none"
+                role="button"
+                tabIndex={0}
+                aria-label={`Open ${node.title}`}
+                onClick={() => onSelectNode(node.title)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onSelectNode(node.title);
+                  }
+                }}
+              >
+                <circle cx={point.x} cy={point.y} r={selected ? 7 : 5} fill={selected ? "#171717" : "#5b21b6"} stroke="#fff" strokeWidth="1.8" />
+                <circle cx={point.x} cy={point.y} r="14" fill="transparent" />
+              </g>
+            );
+          })}
+        {showLabels &&
+          nodes.slice(0, 6).map((node) => {
+            const point = project(node.lat, node.lon);
+            return (
+              <text key={`label-${node.title}`} x={point.x + 8} y={point.y - 8} fill="#171717" fontSize="13" fontFamily="Inter, system-ui">
+                {node.title}
+              </text>
+            );
+          })}
+      </svg>
+    </div>
   );
 }
 
-function MapPopup({ node }: { node: KnowledgeNode }) {
-  if (node.popupClassName === "hidden") return null;
+function MapPopup({ node, onClose }: { node: KnowledgeNode; onClose: () => void }) {
+  const popupPosition = node.popupClassName === "hidden" ? "right-[18%] top-[40%] w-[270px]" : node.popupClassName;
 
   return (
-    <article className={`absolute hidden rounded-lg border border-neutral-200 bg-white/92 p-3 shadow-[0_12px_36px_rgba(0,0,0,0.12)] backdrop-blur md:block ${node.popupClassName}`}>
-      <button type="button" className="absolute right-2 top-2 text-neutral-500" aria-label={`Close ${node.title} preview`}>
+    <article className={`absolute z-20 rounded-lg border border-neutral-200 bg-white/92 p-3 shadow-[0_12px_36px_rgba(0,0,0,0.12)] backdrop-blur ${popupPosition}`}>
+      <button type="button" className="absolute right-2 top-2 text-neutral-500 hover:text-neutral-950" onClick={onClose} aria-label={`Close ${node.title} preview`}>
         <X className="h-3.5 w-3.5" />
       </button>
       <div className="flex gap-3 pr-4">
@@ -643,27 +725,79 @@ export function KnowledgeMapStage() {
   const [showNodes, setShowNodes] = useState(true);
   const [showBorders, setShowBorders] = useState(true);
   const [showLabels, setShowLabels] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [timePeriod, setTimePeriod] = useState("All time");
+  const [timeMenuOpen, setTimeMenuOpen] = useState(false);
+  const [selectedNodeTitle, setSelectedNodeTitle] = useState<string | null>(nodes[0].title);
   const query = "battle AND ww2 AND deaths > 10000";
 
   const nodeCount = useMemo(() => nodes.length + routes.length + zones.length, []);
+  const selectedNode = useMemo(() => nodes.find((node) => node.title === selectedNodeTitle) ?? null, [selectedNodeTitle]);
+  const zoomBounds = zoomBoundsForMode(mode);
+  const canZoomIn = zoom < zoomBounds.max;
+  const canZoomOut = zoom > zoomBounds.min;
+
+  const selectNode = useCallback((title: string) => {
+    setSelectedNodeTitle(title);
+  }, []);
+
+  const zoomIn = () => setZoom((current) => Math.min(zoomBounds.max, Number((current + zoomBounds.step).toFixed(2))));
+  const zoomOut = () => setZoom((current) => Math.max(zoomBounds.min, Number((current - zoomBounds.step).toFixed(2))));
+  const setViewMode = (nextMode: ViewMode) => {
+    const nextBounds = zoomBoundsForMode(nextMode);
+    setMode(nextMode);
+    setZoom((current) => Math.min(nextBounds.max, Math.max(nextBounds.min, current)));
+  };
+
+  const locateNearestNode = useCallback(() => {
+    const fallback = () => {
+      setSelectedNodeTitle("Silicon Valley AI Cluster");
+      setZoom(1.35);
+    };
+
+    if (!navigator.geolocation) {
+      fallback();
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const nearest = nodes.reduce(
+          (best, node) => {
+            const distance = Math.hypot(node.lat - position.coords.latitude, node.lon - position.coords.longitude);
+            return distance < best.distance ? { distance, title: node.title } : best;
+          },
+          { distance: Number.POSITIVE_INFINITY, title: nodes[0].title }
+        );
+        setSelectedNodeTitle(nearest.title);
+        setZoom(1.35);
+      },
+      fallback,
+      { enableHighAccuracy: true, maximumAge: 300000, timeout: 6000 }
+    );
+  }, []);
 
   return (
     <div className="relative h-[calc(100vh-92px)] min-h-[760px]">
-      {mode === "globe" ? <ThreeGlobe showHeat={showHeat} showNodes={showNodes} showBorders={showBorders} /> : <ProjectionMap showHeat={showHeat} showNodes={showNodes} showBorders={showBorders} showLabels={showLabels} />}
+      {mode === "globe" ? (
+        <ThreeGlobe showHeat={showHeat} showNodes={showNodes} showBorders={showBorders} selectedNodeTitle={selectedNodeTitle} zoom={zoom} onSelectNode={selectNode} />
+      ) : (
+        <ProjectionMap showHeat={showHeat} showNodes={showNodes} showBorders={showBorders} showLabels={showLabels} selectedNodeTitle={selectedNodeTitle} zoom={zoom} onSelectNode={selectNode} />
+      )}
 
       <div className="absolute left-7 top-[12%] z-20 grid gap-3">
         <Link href="/" className="flex h-12 w-12 items-center justify-center rounded-full border border-neutral-200 bg-white/88 text-neutral-950 shadow-[0_12px_28px_rgba(0,0,0,0.08)] backdrop-blur" aria-label="Home">
           <Home className="h-5 w-5" />
         </Link>
         <div className="grid overflow-hidden rounded-2xl border border-neutral-200 bg-white/88 shadow-[0_12px_28px_rgba(0,0,0,0.08)] backdrop-blur">
-          <button type="button" className="flex h-12 w-12 items-center justify-center border-b border-neutral-200" aria-label="Zoom in">
+          <button type="button" className="flex h-12 w-12 items-center justify-center border-b border-neutral-200 disabled:cursor-not-allowed disabled:opacity-40" onClick={zoomIn} disabled={!canZoomIn} aria-label="Zoom in">
             <Plus className="h-5 w-5" />
           </button>
-          <button type="button" className="flex h-12 w-12 items-center justify-center" aria-label="Zoom out">
+          <button type="button" className="flex h-12 w-12 items-center justify-center disabled:cursor-not-allowed disabled:opacity-40" onClick={zoomOut} disabled={!canZoomOut} aria-label="Zoom out">
             <Minus className="h-5 w-5" />
           </button>
         </div>
-        <button type="button" className="flex h-12 w-12 items-center justify-center rounded-full border border-neutral-200 bg-white/88 text-neutral-950 shadow-[0_12px_28px_rgba(0,0,0,0.08)] backdrop-blur" aria-label="Locate">
+        <button type="button" className="flex h-12 w-12 items-center justify-center rounded-full border border-neutral-200 bg-white/88 text-neutral-950 shadow-[0_12px_28px_rgba(0,0,0,0.08)] backdrop-blur" onClick={locateNearestNode} aria-label="Locate nearest node">
           <Crosshair className="h-5 w-5" />
         </button>
       </div>
@@ -671,19 +805,36 @@ export function KnowledgeMapStage() {
       <aside className="absolute right-6 top-7 z-20 w-[214px] rounded-xl border border-neutral-200 bg-white/90 p-4 shadow-[0_18px_40px_rgba(0,0,0,0.1)] backdrop-blur">
         <div className="border-b border-neutral-200 pb-4">
           <p className="text-xs text-neutral-700">Time period</p>
-          <button type="button" className="mt-4 flex w-full items-center justify-between text-sm text-neutral-950">
-            All time
-            <ChevronDown className="h-4 w-4" />
+          <button type="button" className="mt-4 flex w-full items-center justify-between text-sm text-neutral-950" onClick={() => setTimeMenuOpen((open) => !open)} aria-expanded={timeMenuOpen}>
+            {timePeriod}
+            <ChevronDown className={`h-4 w-4 transition-transform ${timeMenuOpen ? "rotate-180" : ""}`} />
           </button>
+          {timeMenuOpen && (
+            <div className="mt-3 grid overflow-hidden rounded-md border border-neutral-200 bg-white text-sm shadow-sm">
+              {["All time", "Ancient", "Modern", "20th century"].map((period) => (
+                <button
+                  key={period}
+                  type="button"
+                  className={`px-3 py-2 text-left hover:bg-neutral-100 ${period === timePeriod ? "font-medium text-neutral-950" : "text-neutral-700"}`}
+                  onClick={() => {
+                    setTimePeriod(period);
+                    setTimeMenuOpen(false);
+                  }}
+                >
+                  {period}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <div className="border-b border-neutral-200 py-4">
           <p className="text-xs text-neutral-700">View mode</p>
           <div className="mt-3 grid grid-cols-2 rounded-md border border-neutral-200 bg-neutral-100 p-1 text-xs">
-            <button type="button" className={`flex items-center justify-center gap-1 rounded px-2 py-1.5 ${mode === "globe" ? "bg-white text-neutral-950 shadow-sm" : "text-neutral-600"}`} onClick={() => setMode("globe")}>
+            <button type="button" className={`flex items-center justify-center gap-1 rounded px-2 py-1.5 ${mode === "globe" ? "bg-white text-neutral-950 shadow-sm" : "text-neutral-600"}`} onClick={() => setViewMode("globe")}>
               <Globe2 className="h-3.5 w-3.5" />
               3D
             </button>
-            <button type="button" className={`flex items-center justify-center gap-1 rounded px-2 py-1.5 ${mode === "projection" ? "bg-white text-neutral-950 shadow-sm" : "text-neutral-600"}`} onClick={() => setMode("projection")}>
+            <button type="button" className={`flex items-center justify-center gap-1 rounded px-2 py-1.5 ${mode === "projection" ? "bg-white text-neutral-950 shadow-sm" : "text-neutral-600"}`} onClick={() => setViewMode("projection")}>
               <MapIcon className="h-3.5 w-3.5" />
               2D
             </button>
@@ -700,9 +851,7 @@ export function KnowledgeMapStage() {
         </div>
       </aside>
 
-      {nodes.map((node) => (
-        <MapPopup key={node.title} node={node} />
-      ))}
+      {selectedNode && <MapPopup node={selectedNode} onClose={() => setSelectedNodeTitle(null)} />}
 
       <div className="absolute bottom-14 left-7 z-20 rounded-xl border border-neutral-200 bg-white/90 p-5 shadow-[0_18px_40px_rgba(0,0,0,0.1)] backdrop-blur">
         <div className="flex items-center gap-4 text-sm text-neutral-800">
