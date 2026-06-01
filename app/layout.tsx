@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
-import { TopNav } from "@/components/top-nav";
+import { NavigationFrame } from "@/components/navigation-frame";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -36,7 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className={`${inter.variable} font-sans antialiased`}>
         <Providers>
-          <TopNav />
+          <NavigationFrame />
           <main>{children}</main>
         </Providers>
       </body>
